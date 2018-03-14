@@ -1,56 +1,43 @@
+{-# LANGUAGE OverloadedStrings #-}
 module NodeEditor.Action.Basic.UpdateNodeValue where
 
 import           Common.Action.Command                      (Command)
 import           Common.Prelude
+import qualified Data.Aeson                                 as Aeson
+import qualified Data.Aeson.Encoding                        as Aeson
 import qualified Data.Map                                   as Map
 import qualified Data.Text                                  as Text
-import           JS.Visualizers                             (notifyStreamRestart, sendStreamDatapoint, sendVisualizationData)
+import qualified Data.Text.Lazy                             as Text.Lazy
+import qualified Data.Text.Lazy.Encoding                    as Text.Lazy
 import           LunaStudio.Data.Error                      (errorContent)
-import           LunaStudio.Data.NodeValue                  (NodeValue (NodeError, NodeValue),
-                                                             VisualizationValue (StreamDataPoint, StreamStart, Value))
-import           LunaStudio.Data.TypeRep                    (errorTypeRep, toConstructorRep)
-import           NodeEditor.Action.State.NodeEditor         (getExpressionNodeType, getNodeVisualizations,
-                                                             modifyExpressionNode, modifyNodeEditor, recoverVisualizations,
-                                                             updateVisualizationsForNode)
-import           NodeEditor.React.Model.Node.ExpressionNode (NodeLoc, Value (Error, ShortValue), execTime, value)
-import           NodeEditor.React.Model.NodeEditor          (VisualizationBackup (StreamBackup, ValueBackup), backupMap, visualizationsBackup)
-import           NodeEditor.React.Model.Visualization       (visualizations)
+import           LunaStudio.Data.NodeValue                  (NodeValue (NodeError, NodeValue))
+import           NodeEditor.Action.State.NodeEditor         (getExpressionNodeType, getVisualizersForType, modifyExpressionNode,
+                                                             setVisualizationData)
+import           NodeEditor.React.Model.Node.ExpressionNode (NodeLoc, Value (Error, ShortValue), value)
+import           NodeEditor.React.Model.NodeEditor          (VisualizationBackup (ErrorBackup, MessageBackup, StreamBackup, ValueBackup))
+import           NodeEditor.React.Model.Visualization       (VisualizationValue (StreamDataPoint, StreamStart, Value), noDataMsg, noVisMsg)
 import           NodeEditor.State.Global                    (State)
 
+
+encodeToLazyText :: Aeson.ToJSON a => a -> Text.Text
+encodeToLazyText = Text.Lazy.toStrict . Text.Lazy.decodeUtf8 . Aeson.encodingToLazyByteString . Aeson.toEncoding
 
 updateNodeValueAndVisualization :: NodeLoc -> NodeValue -> Command State ()
 updateNodeValueAndVisualization nl = \case
     NodeValue sv (Just (StreamDataPoint visVal)) -> do
-        modifyExpressionNode nl $ value ?= ShortValue (Text.take 100 sv)
-        let updateBackup (StreamBackup backup) = Just . StreamBackup $ visVal : backup
-            updateBackup _                     = Nothing
-        modifyNodeEditor $ visualizationsBackup . backupMap %= Map.update updateBackup nl
-        visIds <- maybe def (Map.keys . view visualizations) <$> getNodeVisualizations nl
-        liftIO . forM_ visIds $ flip sendStreamDatapoint visVal
+        modifyExpressionNode nl $ value .= ShortValue (Text.take 100 sv)
+        setVisualizationData nl (StreamBackup [visVal]) False
     NodeValue sv (Just (Value visVal)) -> do
-        modifyExpressionNode nl $ value ?= ShortValue (Text.take 100 sv)
-        modifyNodeEditor $ visualizationsBackup . backupMap . at nl ?= ValueBackup visVal
-        visIds <- recoverVisualizations nl
-        withJustM (maybe def toConstructorRep <$> getExpressionNodeType nl) $ \cRep ->
-            liftIO . forM_ visIds $ \visId -> sendVisualizationData visId cRep visVal
+        modifyExpressionNode nl $ value .= ShortValue (Text.take 100 sv)
+        setVisualizationData nl (ValueBackup visVal) True
     NodeValue sv (Just StreamStart) -> do
-        modifyExpressionNode nl $ value ?= ShortValue (Text.take 100 sv)
-        modifyNodeEditor $ visualizationsBackup . backupMap . at nl ?= StreamBackup []
-        visIds <- recoverVisualizations nl
-        withJustM (maybe def toConstructorRep <$> getExpressionNodeType nl) $ \cRep ->
-            liftIO . forM_ visIds $ \visId -> notifyStreamRestart visId cRep def
+        modifyExpressionNode nl $ value .= ShortValue (Text.take 100 sv)
+        setVisualizationData nl (StreamBackup []) True
     NodeValue sv Nothing -> do
-        modifyExpressionNode nl $ value ?= ShortValue (Text.take 100 sv)
-        modifyNodeEditor $ visualizationsBackup . backupMap . at nl .= def
-        updateVisualizationsForNode nl Nothing
+        modifyExpressionNode nl $ value .= ShortValue (Text.take 100 sv)
+        noVisualizers <- maybe (return False) (fmap isNothing . getVisualizersForType) =<< getExpressionNodeType nl
+        let msg = if noVisualizers then noVisMsg else noDataMsg
+        setVisualizationData nl (MessageBackup msg) True
     NodeError e -> do
-        modifyExpressionNode nl $ value ?= Error e
-        modifyNodeEditor $ visualizationsBackup . backupMap . at nl ?= ValueBackup (e ^. errorContent)
-        updateVisualizationsForNode nl $ Just errorTypeRep
-        visIds <- recoverVisualizations nl
-        withJust (toConstructorRep errorTypeRep) $ \cRep ->
-            liftIO . forM_ visIds $ \visId -> sendVisualizationData visId cRep $ e ^. errorContent
-
-
-setNodeProfilingData :: NodeLoc -> Integer -> Command State ()
-setNodeProfilingData nl t = modifyExpressionNode nl $ execTime ?= t
+        modifyExpressionNode nl $ value .= Error e
+        setVisualizationData nl (ErrorBackup $ encodeToLazyText e) True

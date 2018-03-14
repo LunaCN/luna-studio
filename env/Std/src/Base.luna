@@ -16,10 +16,6 @@ native class Int:
     def <  that: primIntLt       self that
     ## Integer equality. `a.== b` returns True when `a` equals `b`.
     def == that: primIntEquals   self that
-    ## Lesser than or equal to operator.
-    def <= that: self<that . or self==that
-    ## Greater than or equal to operator.
-    def >= that: self>that . or self==that
 
     ## Integer negation. `a.negate == -1 * a`.
     def negate: primIntNegate self
@@ -76,10 +72,6 @@ native class Real:
     def <  that: primRealLt       self that
     ## Tests whether `self` is equal to the argument.
     def == that: primRealEquals   self that
-    ## Lesser than or equal to operator.
-    def <= that: self<that . or self==that
-    ## Greater than or equal to operator.
-    def >= that: self>that . or self==that
 
     ## Negation. `a.negate == -1.0 * a`
     def negate:     primRealNegate self
@@ -87,6 +79,10 @@ native class Real:
     def toText:     primRealToText self
     ## Round a number with given precision – the result is a real number with the number of digits after the decimal dot equal to the argument.
     def round prec: primRealRound  self prec
+    ## Round a number down to the closest `Int`
+    def floor: primRealFloor self
+    ## Round a number up to the closest `Int`
+    def ceiling: primRealCeiling self
 
     ## Sine function.
     def sin: primRealSin self
@@ -141,10 +137,6 @@ native class Text:
     def <  that: primTextLt     self that
     ## Tests wheter two texts are equal.
     def == that: primTextEquals self that
-    ## Lesser than or equal to operator.
-    def <= that: self<that . or self==that
-    ## Greater than or equal to operator.
-    def >= that: self>that . or self==that
 
     ## Tests whether the text is empty (equal to `""`).
     def isEmpty: primTextIsEmpty self
@@ -302,11 +294,17 @@ def id a: a
 ## Constant function. Ignores its second argument and always returns the first.
 def const a b: a
 
-## Takes an action returning `None` and evaluating the action only when a given condition is met.
-def when p f: if p then f else None
+## Takes an action and evaluates it only when a given condition is met. Always returns `None`.
+def when p f: if p then (seq f None) else None
 
 ## Takes an action returning `None` and evaluating the action only unless a given condition is met.
 def unless p f: if p then None else f
+
+## Greater or equal operator. Requires the objects to define both `>` and `==` methods.
+def >= a b: (a > b).or (a == b)
+
+## Less than or equal to operator. Requires the objects to define both `<` and `==` methods.
+def <= a b: (a < b).or (a == b)
 
 def seq a b:
     a
@@ -578,6 +576,11 @@ class List a:
         Empty: Nothing
         Prepend x xs: Just x
 
+    def last: case self of
+        Prepend a Empty: Just a
+        Prepend _ rest: rest.last
+        Empty: Nothing
+
     ## Returns `Just` the list without the first element when the list is not empty, `Nothing` otherwise.
     def tail: case self of
         Empty: Nothing
@@ -781,6 +784,13 @@ class List a:
 
     ## Checks whether the list contains a given element.
     def contains elem: self._any (x: x == elem)
+
+    ## Returns the longest prefix of the list for which a given predicate is satisfied.
+    def takeWhile pred: case self of
+        Empty: Empty
+        Prepend a as:
+            p = pred a
+            if p then Prepend a (as.takeWhile pred) else []
 
 ## Represents a dictionary from keys of given type to values of given type. The keys need to have ordering defined.
 class Map k v:
@@ -1010,6 +1020,11 @@ class JSON:
     def insert k v: case self of
         JSONObject m: JSONObject (m . insert k v.toJSON)
         _: throw "JSON.insert: not an object."
+
+    ## Deletes a value for a given key from the `JSON` object. Does nothing when the `JSON` does not represent an object or does not contain the key.
+    def delete k: case self of
+        JSONObject m: JSONObject (m.delete k)
+        _: self
 
     ## Returns `Just` the value associated with a given key. Returns `Nothing` when the `JSON` is not an object or when the key is missing.
     def lookup key: case self of

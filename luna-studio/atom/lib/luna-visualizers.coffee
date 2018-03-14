@@ -1,25 +1,56 @@
 path = require 'path'
 fs   = require 'fs'
 
-visBasePath = path.join __dirname, 'visualizers'
+lunaBaseVisPath = path.join __dirname, 'visualizers'
+internalVisName = 'internal'
+lunaVisName     = 'data'
+lunaVisPath     = path.join lunaBaseVisPath, lunaVisName
 
-listVisualizers = (visPath) -> (fs.readdirSync visPath).filter((p) -> fs.existsSync(path.join(visPath, p, "config.js")))
+internalVisualizers = []
+lunaVisualizers     = []
+projectVisualizers  = []
+
+
+listVisualizers = (visPath, name) -> 
+    if not fs.existsSync visPath
+        []
+    else
+        dirs = []
+        if name?
+            dirs = [name]
+        else
+            dirs = fs.readdirSync visPath
+        dirs.filter((p) -> fs.existsSync(path.join(visPath, p, "config.js")))
 
 resolveVis = (p, name) ->
     normalizeVis p, name, require(path.join p, name, "config.js")
 
 normalizeVis = (p, name, visConf) -> (cons) ->
-    filesToLoad = visConf (JSON.parse cons)
+    filesToLoad = if cons? then visConf(JSON.parse cons) else visConf()
     if filesToLoad?
         f.path = path.join(name, f.path) for f in filesToLoad
         JSON.stringify(filesToLoad)
     else JSON.stringify(null)
 
-setupConfigMap = (path) ->
-    visualizers = listVisualizers(path)
+getVisualizersForPath = (path, name) ->
+    visualizers = listVisualizers(path, name)
     result = {}
     result[n] = resolveVis path, n for n in visualizers
-    window.visualizersPath = path
-    window.visualizers     = result
+    result
 
-module.exports = () -> setupConfigMap visBasePath
+module.exports = () ->
+    window.getInternalVisualizersPath = () -> lunaBaseVisPath
+    window.getInternalVisualizers = () -> 
+        internalVisualizers = getVisualizersForPath lunaBaseVisPath, internalVisName
+        internalVisualizers
+    window.getLunaVisualizersPath = () -> lunaVisPath
+    window.getLunaVisualizers     = () ->
+        lunaVisualizers = getVisualizersForPath lunaVisPath
+        lunaVisualizers
+    window.getProjectVisualizers      = (path) ->
+        projectVisualizers = getVisualizersForPath path
+        projectVisualizers
+    window.checkInternalVisualizer = (name)         -> internalVisualizers[name]()
+    window.checkLunaVisualizer     = (name, tpeRep) -> lunaVisualizers[name](tpeRep)
+    window.checkProjectVisualizer  = (name, tpeRep) -> projectVisualizers[name](tpeRep)
+

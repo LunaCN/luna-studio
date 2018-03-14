@@ -30,19 +30,29 @@ nodeValue = React.defineView nodeValueName $ \(ref, n) ->
             [ "key"       $= "shortValue"
             , "className" $= Style.prefixFromList ["node__short-value", "noselect" ]
             , onDoubleClick $ \e _ -> [stopPropagation e]
-            , onClick       $ \_ _ -> dispatch ref $ UI.NodeEvent $ Node.Event (n ^. Node.nodeLoc) Node.ShowFullError
             ] $ elemString $ strValue n
 
 strValue :: ExpressionNode -> String
 strValue n = case n ^. Node.value of
-    Nothing -> ""
-    Just (ShortValue value) -> Text.unpack value
-    Just (Error      msg  ) -> showError msg --limitString errorLen (convert $ showError msg)
+    ShortValue value -> Text.unpack value
+    Error      msg   -> showError msg
+    _ -> ""
+
 
 showError :: LunaError.Error LunaError.NodeError -> String
 showError = showErrorSep ""
 
+showSourceLocation :: LunaError.SourceLocation -> String
+showSourceLocation (LunaError.SourceLocation mod klass fun) =
+    "    " <> convert mod <> maybe "" (("." <>) . convert) klass <> "." <> convert fun <> "\n"
+
+showCompileErrorBacktrace :: LunaError.CompileErrorDetails -> String
+showCompileErrorBacktrace (LunaError.CompileErrorDetails arisingFrom requiredBy) =
+    "\n" <>
+    (if null arisingFrom then "" else ("arising from:\n" <> concatMap showSourceLocation arisingFrom <> "\n")) <>
+    (if null requiredBy  then "" else ("required by:\n" <> concatMap showSourceLocation requiredBy))
+
 showErrorSep :: String -> LunaError.Error LunaError.NodeError -> String
 showErrorSep sep err = case err of
-    LunaError.Error LunaError.CompileError msg -> "Compile error: " <> sep <> convert msg
+    LunaError.Error (LunaError.CompileError details) msg -> "Compile error: " <> sep <> convert msg <> sep <> showCompileErrorBacktrace details
     LunaError.Error LunaError.RuntimeError msg -> "Runtime error: " <> sep <> convert msg

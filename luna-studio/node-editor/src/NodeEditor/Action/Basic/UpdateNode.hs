@@ -27,6 +27,7 @@ import           NodeEditor.State.Global                     (State)
 
 data NodeUpdateModification = KeepPorts
                             | KeepNodeMeta
+                            | MergePorts
                             deriving (Eq, Ord)
 
 
@@ -95,11 +96,12 @@ localUpdateExpressionNode mods node
                 mode'           = prevNode ^. ExpressionNode.mode
                 errVis          = prevNode ^. ExpressionNode.errorVisEnabled
                 preventPorts    = Set.member KeepPorts    mods
+                mergePorts      = Set.member MergePorts   mods
                 preventNodeMeta = Set.member KeepNodeMeta mods
-                inPorts         = if preventPorts
+                inPorts         = if preventPorts || (mergePorts && (prevNode ^. ExpressionNode.inPorts /= def))
                     then prevNode ^. ExpressionNode.inPorts
                     else node ^. ExpressionNode.inPorts
-                outPorts        = if preventPorts
+                outPorts        = if preventPorts || (mergePorts && (prevNode ^. ExpressionNode.outPorts /= def))
                     then prevNode ^. ExpressionNode.outPorts
                     else node ^. ExpressionNode.outPorts
                 position        = if preventNodeMeta
@@ -111,6 +113,7 @@ localUpdateExpressionNode mods node
                 defVis          = if preventNodeMeta
                     then prevNode ^. ExpressionNode.defaultVisualizer
                     else node ^. ExpressionNode.defaultVisualizer
+                value = prevNode ^. ExpressionNode.value
                 n = node
                     & isSelected                       .~ selected
                     & ExpressionNode.mode              .~ mode'
@@ -120,6 +123,8 @@ localUpdateExpressionNode mods node
                     & ExpressionNode.visEnabled        .~ visEnabled
                     & ExpressionNode.defaultVisualizer .~ defVis
                     & ExpressionNode.errorVisEnabled   .~ errVis
+                    & ExpressionNode.value             .~ value
+
                 mayPortSelfId = find isSelf . map (view portId) $ inPortsList n
                 updatePortSelfMode n' selfPid m
                     = n' & inPortAt selfPid . mode .~ m
@@ -162,7 +167,9 @@ localUpdateNodeTypecheck path update = do
                 $ \node -> void . localUpdateExpressionNode def $ node
                     & ExpressionNode.inPorts  .~ convert `fmap` inPorts
                     & ExpressionNode.outPorts .~ convert `fmap` outPorts
-                    & ExpressionNode.value    .~ ExpressionNode.AwaitingData
+                    & ExpressionNode.value    %~ (\value ->
+                        if value == ExpressionNode.AwaitingTypecheck
+                            then ExpressionNode.AwaitingData else value)
         API.OutputSidebarUpdate _ inPorts -> NodeEditor.modifyOutputNode nl $
             SidebarNode.outputSidebarPorts .= convert `fmap` inPorts
         API.InputSidebarUpdate _ outPorts -> NodeEditor.modifyInputNode nl $

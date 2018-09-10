@@ -8,13 +8,14 @@ dependencies:
   - batch-lib-luna-empire
   - binary
   - bytestring
-  - container
+  - containers
   - errors
   - ghc
   - hspec
   - lens
   - luna-studio-common
   - mtl
+  - m-logger
   - prologue
   - safe-exceptions
   - stm

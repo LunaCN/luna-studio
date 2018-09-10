@@ -3,34 +3,35 @@
 
 module EmpireSpec (spec) where
 
+import           Control.Lens                    ((^..))
 import           Data.Foldable                   (toList)
 import           Data.List                       (find, stripPrefix)
 import qualified Data.Map                        as Map
 import           Empire.ASTOp                    (runASTOp)
+import qualified Empire.ASTOps.Builder           as ASTBuilder
 import qualified Empire.ASTOps.Deconstruct       as ASTDeconstruct
 import           Empire.ASTOps.Modify            (CannotRemovePortException)
 import qualified Empire.ASTOps.Parse             as Parser
 import           Empire.ASTOps.Print             (printExpression)
 import qualified Empire.ASTOps.Read              as ASTRead
-import qualified Empire.Commands.AST             as AST (dumpGraphViz, isTrivialLambda)
-import qualified Empire.Commands.Graph           as Graph (addNode, addPort, addPortWithConnections, connect, disconnect, filterPrimMethods,
-                                                           getConnections, getGraph, getNodeIdForMarker, getNodes, importsToHints, loadCode,
-                                                           movePort, removeNodes, removePort, renameNode, renamePort, setNodeExpression,
-                                                           setNodeMeta, withGraph)
+import qualified Empire.Commands.AST             as AST (isTrivialLambda)
+import qualified Empire.Commands.Graph           as Graph (addNode, addPort, connect, disconnect, getConnections, getGraph,
+                                                           getNodeIdForMarker, getNodes, loadCode, movePort, removeNodes, removePort,
+                                                           renameNode, renamePort, setNodeExpression, setNodeMeta, withGraph,
+                                                           addPortWithConnections)
 import qualified Empire.Commands.GraphBuilder    as GraphBuilder
 import           Empire.Commands.Library         (createLibrary, withLibrary)
 import qualified Empire.Commands.Typecheck       as Typecheck (run)
+import qualified Empire.Data.AST                 as AST
 import           Empire.Data.BreadcrumbHierarchy (BreadcrumbDoesNotExistException)
 import qualified Empire.Data.BreadcrumbHierarchy as BH
-import           Empire.Data.Graph               (ast, breadcrumbHierarchy)
+import           Empire.Data.Graph               (breadcrumbHierarchy, userState)
 import qualified Empire.Data.Graph               as Graph (code)
 import qualified Empire.Data.Library             as Library (body)
 import qualified Empire.Data.Library             as Library (body)
+-- import qualified Luna.Builtin.Data.Class         as Class
+-- import qualified Luna.Builtin.Data.Function      as Function
 import           Empire.Empire                   (InterpreterEnv (..))
-import           Empire.Prelude                  hiding (mapping, toList, (|>))
-import qualified Luna.Builtin.Data.Class         as Class
-import qualified Luna.Builtin.Data.Function      as Function
-import qualified Luna.Builtin.Data.Module        as Module
 import           LunaStudio.Data.Breadcrumb      (Breadcrumb (..), BreadcrumbItem (Definition))
 import           LunaStudio.Data.Connection      (Connection (Connection))
 import qualified LunaStudio.Data.Graph           as Graph
@@ -45,9 +46,11 @@ import           LunaStudio.Data.Port            (InPorts (..), OutPorts (..))
 import qualified LunaStudio.Data.Port            as Port
 import           LunaStudio.Data.PortDefault     (PortDefault (Expression))
 import           LunaStudio.Data.PortRef         (AnyPortRef (..), InPortRef (..), OutPortRef (..))
+import qualified LunaStudio.Data.PortRef            as PortRef
 import qualified LunaStudio.Data.Position        as Position
 import           LunaStudio.Data.TypeRep         (TypeRep (TCons, TLam, TStar, TVar))
-import           OCI.IR.Class                    (exprs, links)
+-- import           OCI.IR.Class                    (exprs, links)
+import           Empire.Prelude                  hiding (mapping, toList, (|>))
 
 import           Test.Hspec                      (Selector, Spec, around, describe, expectationFailure, it, parallel, shouldBe,
                                                   shouldContain, shouldMatchList, shouldNotBe, shouldSatisfy, shouldStartWith, shouldThrow,
@@ -57,24 +60,24 @@ import           EmpireUtils
 
 spec :: Spec
 spec = around withChannels $ parallel $ do
-    describe "imports" $ do
-        it "filters private methods" $ \_ -> do
-            let wd = Function.WithDocumentation Nothing
-            let imports = Module.Imports (Map.fromList [("Klass1", wd $ Class.Class def (Map.fromList [("someMethod", undefined), ("_privateMethod", undefined)]))])
-                                         (Map.fromList [("function", wd undefined), ("_privateFunction", wd undefined)])
-                hints = Graph.importsToHints imports
-            hints ^? NodeSearcher.classes . ix "Klass1" . NodeSearcher.methods . to Map.fromList . ix "_privateMethod" `shouldBe` Nothing
-            hints ^? NodeSearcher.classes . ix "Klass1" . NodeSearcher.methods . to Map.fromList . ix "someMethod" `shouldNotBe` Nothing
-            hints ^? NodeSearcher.functions . to Map.fromList . ix "_privateFunction" `shouldBe` Nothing
-            hints ^? NodeSearcher.functions . to Map.fromList . ix "function" `shouldNotBe` Nothing
-        it "filters private native functions" $ \_ -> do
-            let wd = Function.WithDocumentation Nothing
-            let imports = Module.Imports def
-                                         (Map.fromList [("primFunction", wd undefined), ("#uminus#", wd undefined), ("function", wd undefined)])
-                hints = Graph.importsToHints $ Graph.filterPrimMethods imports
-            hints ^? NodeSearcher.functions . to Map.fromList . ix "primFunction" `shouldBe` Nothing
-            hints ^? NodeSearcher.functions . to Map.fromList . ix "#uminus#" `shouldBe` Nothing
-            hints ^? NodeSearcher.functions . to Map.fromList . ix "function" `shouldNotBe` Nothing
+    -- describe "imports" $ do
+    --     it "filters private methods" $ \_ -> do
+    --         let wd = Function.WithDocumentation Nothing
+    --         let imports = Module.Imports (Map.fromList [("Klass1", wd $ Class.Class def (Map.fromList [("someMethod", undefined), ("_privateMethod", undefined)]))])
+    --                                      (Map.fromList [("function", wd undefined), ("_privateFunction", wd undefined)])
+    --             hints = Graph.importsToHints imports
+    --         hints ^? NodeSearcher.classes . ix "Klass1" . NodeSearcher.methods . to Map.fromList . ix "_privateMethod" `shouldBe` Nothing
+    --         hints ^? NodeSearcher.classes . ix "Klass1" . NodeSearcher.methods . to Map.fromList . ix "someMethod" `shouldNotBe` Nothing
+    --         hints ^? NodeSearcher.functions . to Map.fromList . ix "_privateFunction" `shouldBe` Nothing
+    --         hints ^? NodeSearcher.functions . to Map.fromList . ix "function" `shouldNotBe` Nothing
+    --     it "filters private native functions" $ \_ -> do
+    --         let wd = Function.WithDocumentation Nothing
+    --         let imports = Module.Imports def
+    --                                      (Map.fromList [("primFunction", wd undefined), ("#uminus#", wd undefined), ("function", wd undefined)])
+    --             hints = Graph.importsToHints $ Graph.filterPrimMethods imports
+    --         hints ^? NodeSearcher.functions . to Map.fromList . ix "primFunction" `shouldBe` Nothing
+    --         hints ^? NodeSearcher.functions . to Map.fromList . ix "#uminus#" `shouldBe` Nothing
+    --         hints ^? NodeSearcher.functions . to Map.fromList . ix "function" `shouldNotBe` Nothing
     describe "luna-empire" $ do
         it "descends into `foo = a: a` and asserts two edges inside" $ \env -> do
             u1 <- mkUUID
@@ -367,14 +370,236 @@ spec = around withChannels $ parallel $ do
                 nodes `shouldSatisfy` ((== 1) . length)
                 unsafeHead nodes `shouldSatisfy` (\a -> a ^. Node.expression == "• + •")
         it "places connections between + node and output" $ \env -> do
-          u1 <- mkUUID
-          res <- evalEmp env $ do
-              let loc' = top |> u1
-              Graph.addNode top u1 "a: b: a + b" def
-              Graph.getConnections loc'
-          withResult res $ \conns -> do
-              -- one from a to +, one from b to + and one from + to output edge
-              conns `shouldSatisfy` ((== 3) . length)
+            u1 <- mkUUID
+            res <- evalEmp env $ do
+                let loc' = top |> u1
+                Graph.addNode top u1 "a: b: a + b" def
+                Graph.getConnections loc'
+            withResult res $ \conns -> do
+                -- one from a to +, one from b to + and one from + to output edge
+                conns `shouldSatisfy` ((== 3) . length)
+        it "shows connection between node and list containing it" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "[number1]" def
+                Graph.getConnections top
+            withResult res $ \conns -> do
+                conns `shouldSatisfy` ((== 1) . length)
+        it "shows connection between nodes and list containing them" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            u4 <- mkUUID
+            u5 <- mkUUID
+            u6 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "2" def
+                Graph.addNode top u3 "2" def
+                Graph.addNode top u4 "2" def
+                Graph.addNode top u6 "    [   number1  , number2   ,   number3 ,number4   ]" def
+                (,) <$> Graph.withGraph top (runASTOp (GraphBuilder.buildNode u6)) <*> Graph.getConnections top
+            withResult res $ \(list, conns) -> do
+                conns `shouldSatisfy` ((== 4) . length)
+        it "connects elements to a list" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "[]" def
+                Graph.addNode top u2 "2" def
+                Graph.addNode top u3 "3" def
+                Graph.connect top (outPortRef u2 []) (InPortRef' $ inPortRef u1 [Port.Arg 0])
+                Graph.connect top (outPortRef u3 []) (InPortRef' $ inPortRef u1 [Port.Arg 1])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u1
+            withResult res $ \(node) -> do
+                node ^. Node.expression `shouldBe` "[\8226, \8226]"
+                node ^. Node.code `shouldBe` "[number1, number2]"
+        it "connects elements to a list and removes all but one" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            u4 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "[]" def
+                Graph.addNode top u2 "2" def
+                Graph.addNode top u3 "3" def
+                Graph.addNode top u4 "4" def
+                Graph.connect top (outPortRef u2 []) (InPortRef' $ inPortRef u1 [Port.Arg 0])
+                Graph.connect top (outPortRef u3 []) (InPortRef' $ inPortRef u1 [Port.Arg 1])
+                Graph.connect top (outPortRef u4 []) (InPortRef' $ inPortRef u1 [Port.Arg 2])
+                Graph.disconnect top (inPortRef u1 [Port.Arg 0])
+                Graph.disconnect top (inPortRef u1 [Port.Arg 0])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u1
+            withResult res $ \(node) -> do
+                node ^. Node.expression `shouldBe` "[\8226]"
+                node ^. Node.code `shouldBe` "[number3]"
+        it "replaces element in a list" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u2 "2" def
+                Graph.addNode top u3 "3" def
+                Graph.addNode top u1 "[    number1   ,     number2   ]" def
+                Graph.connect top (outPortRef u3 []) (InPortRef' $ inPortRef u1 [Port.Arg 0])
+                Graph.connect top (outPortRef u2 []) (InPortRef' $ inPortRef u1 [Port.Arg 0])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u1
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[\8226, \8226]"
+                node ^. Node.code `shouldBe` "[    number1   ,     number2   ]"
+        it "replaces newly added element in a list" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            u4 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u2 "2" def
+                Graph.addNode top u3 "3" def
+                Graph.addNode top u4 "4" def
+                Graph.addNode top u1 "[    number1   ,     number2   ]" def
+                Graph.connect top (outPortRef u2 []) (InPortRef' $ inPortRef u1 [Port.Arg 2])
+                Graph.connect top (outPortRef u4 []) (InPortRef' $ inPortRef u1 [Port.Arg 2])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u1
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[\8226, \8226, \8226]"
+                node ^. Node.code `shouldBe` "[    number1   ,     number2, number3   ]"
+        it "disconnects the only list element" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "[number1]" def
+                Graph.disconnect top (inPortRef u2 [Port.Arg 0])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u2
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[]"
+                node ^. Node.code `shouldBe` "[]"
+        it "disconnects the first list element" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "3" def
+                Graph.addNode top u3 "[ number1,  number2   ]" def
+                Graph.disconnect top (inPortRef u3 [Port.Arg 0])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u3
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[\8226]"
+                node ^. Node.code `shouldBe` "[ number2   ]"
+        it "disconnects the last list element" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "3" def
+                Graph.addNode top u3 "[   number1  ,  number2  ]" def
+                Graph.disconnect top (inPortRef u3 [Port.Arg 1])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u3
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[\8226]"
+                node ^. Node.code `shouldBe` "[   number1  ]"
+        it "disconnects all list element" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "3" def
+                Graph.addNode top u3 "[   number1  ,  number2  ]" def
+                Graph.disconnect top (inPortRef u3 [Port.Arg 0])
+                Graph.disconnect top (inPortRef u3 [Port.Arg 0])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u3
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[]"
+                node ^. Node.code `shouldBe` "[]"
+        it "disconnects middle list element" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            u4 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "3" def
+                Graph.addNode top u3 "4" def
+                Graph.addNode top u4 "[   number1  ,  number2  ,     number3]" def
+                Graph.disconnect top (inPortRef u4 [Port.Arg 1])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u4
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[\8226, \8226]"
+                node ^. Node.code `shouldBe` "[   number1  ,  number3]"
+        it "disconnects middle list elements" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            u4 <- mkUUID
+            u5 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "3" def
+                Graph.addNode top u3 "4" def
+                Graph.addNode top u4 "4" def
+                Graph.addNode top u5 "[   number1 ,    number2  ,number3    ,    number4    ]" def
+                Graph.disconnect top (inPortRef u5 [Port.Arg 2])
+                Graph.disconnect top (inPortRef u5 [Port.Arg 1])
+                Graph.disconnect top (inPortRef u5 [Port.Arg 0])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u5
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[\8226]"
+                node ^. Node.code `shouldBe` "[   number4    ]"
+        it "disconnects two list elements from the end" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            u4 <- mkUUID
+            res <- evalEmp env $ do
+                Graph.addNode top u1 "2" def
+                Graph.addNode top u2 "3" def
+                Graph.addNode top u3 "4" def
+                Graph.addNode top u4 "[   number1  ,  number2  ,     number3]" def
+                Graph.disconnect top (inPortRef u4 [Port.Arg 2])
+                Graph.disconnect top (inPortRef u4 [Port.Arg 1])
+                Graph.withGraph top $ runASTOp $ do
+                    GraphBuilder.buildNode u4
+            withResult res $ \node -> do
+                node ^. Node.expression `shouldBe` "[\8226]"
+                node ^. Node.code `shouldBe` "[   number1]"
+        it "disallows connecting past last + 1 list element" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            let res = evalEmp env $ do
+                    Graph.addNode top u1 "[]" def
+                    Graph.addNode top u2 "2" def
+                    Graph.connect top (outPortRef u2 []) (InPortRef' $ inPortRef u1 [Port.Arg 1])
+            let parserException :: Selector AST.ConnectionException
+                parserException = const True
+            res `shouldThrow` parserException
+        it "disallows connecting negative list element" $ \env -> do
+            u1 <- mkUUID
+            u2 <- mkUUID
+            u3 <- mkUUID
+            let res = evalEmp env $ do
+                    Graph.addNode top u1 "[]" def
+                    Graph.addNode top u2 "2" def
+                    Graph.connect top (outPortRef u2 []) (InPortRef' $ inPortRef u1 [Port.Arg (-1)])
+            let parserException :: Selector AST.ConnectionException
+                parserException = const True
+            res `shouldThrow` parserException
         it "cleans after removing `foo = a: a` with `4` inside connected to output" $ \env -> do
             u1 <- mkUUID
             u2 <- mkUUID
@@ -386,7 +611,7 @@ spec = around withChannels $ parallel $ do
                 let referenceConnection = (outPortRef u2 [], inPortRef out [])
                 uncurry (connectToInput loc') referenceConnection
                 Graph.removeNodes top [u1]
-                Graph.withGraph top $ use (breadcrumbHierarchy . BH.children)
+                Graph.withGraph top $ use (userState . breadcrumbHierarchy . BH.children)
             withResult res $ \mapping -> do
                 length mapping `shouldBe` 0
         it "removes `foo = a: a`" $ \env -> do
@@ -394,7 +619,7 @@ spec = around withChannels $ parallel $ do
             res <- evalEmp env $ do
                 Graph.addNode top u1 "foo = a: a" def
                 Graph.removeNodes top [u1]
-                Graph.withGraph top $ use (breadcrumbHierarchy . BH.children)
+                Graph.withGraph top $ use (userState . breadcrumbHierarchy . BH.children)
             withResult res $ \mapping -> do
                 length mapping `shouldBe` 0
         it "RHS of `foo = a: a` is Lam" $ \env -> do
@@ -698,7 +923,7 @@ spec = around withChannels $ parallel $ do
                 Graph.addNode top u1 "foo = a: a" def
                 let loc' = top |> u1
                 (input, output) <- Graph.withGraph loc' $ runASTOp GraphBuilder.getEdgePortMapping
-                Graph.addPort loc' (outPortRef input [Port.Projection 1])
+                Graph.addPort loc' $ outPortRef input [Port.Projection 1]
                 inputEdge <- buildInputEdge' loc' input
                 defFoo <- Graph.withGraph top $ runASTOp $ GraphBuilder.buildNode u1
                 connections <- Graph.getConnections loc'
@@ -767,8 +992,8 @@ spec = around withChannels $ parallel $ do
                 Graph.addNode top u1 "foo = a: a" def
                 let loc' = top |> u1
                 (input, _) <- Graph.withGraph loc' $ runASTOp GraphBuilder.getEdgePortMapping
-                Graph.addPort loc' (outPortRef input [Port.Projection 1])
-                Graph.addPort loc' (outPortRef input [Port.Projection 2])
+                Graph.addPort loc' $ outPortRef input [Port.Projection 1]
+                Graph.addPort loc' $ outPortRef input [Port.Projection 2]
                 inputEdge <- buildInputEdge' loc' input
                 defFoo <- Graph.withGraph top $ runASTOp $ GraphBuilder.buildNode u1
                 return (inputEdge, defFoo)
@@ -790,7 +1015,7 @@ spec = around withChannels $ parallel $ do
                 Graph.addNode top u1 "a: b: a + b" def
                 let loc' = top |> u1
                 (input, _) <- Graph.withGraph loc' $ runASTOp GraphBuilder.getEdgePortMapping
-                Graph.addPort loc' (outPortRef input [Port.Projection 2])
+                Graph.addPort loc' $ outPortRef input [Port.Projection 2]
                 inputEdge <- buildInputEdge' loc' input
                 defFoo <- Graph.withGraph top $ runASTOp $ GraphBuilder.buildNode u1
                 connections <- Graph.getConnections loc'
@@ -816,7 +1041,7 @@ spec = around withChannels $ parallel $ do
                 Graph.addNode top u2 "func" def
                 let loc' = top |> u1
                 (input, _) <- Graph.withGraph loc' $ runASTOp GraphBuilder.getEdgePortMapping
-                Graph.addPort loc' (outPortRef input [Port.Projection 1])
+                Graph.addPort loc' $ outPortRef input [Port.Projection 1]
                 connectToInput top (outPortRef u2 []) (inPortRef u1 [Port.Arg 1])
                 node <- Graph.withGraph top $ runASTOp $ GraphBuilder.buildNode u1
                 connections <- Graph.getConnections top
@@ -836,7 +1061,7 @@ spec = around withChannels $ parallel $ do
                 Graph.addNode top u1 "a: b: a" def
                 let loc' = top |> u1
                 (input, _) <- Graph.withGraph loc' $ runASTOp GraphBuilder.getEdgePortMapping
-                Graph.removePort loc' (outPortRef input [Port.Projection 1])
+                Graph.removePort loc' $ outPortRef input [Port.Projection 1]
                 inputEdge <- buildInputEdge' loc' input
                 defFoo <- Graph.withGraph top $ runASTOp $ GraphBuilder.buildNode u1
                 return (inputEdge, defFoo)

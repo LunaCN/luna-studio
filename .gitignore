@@ -61,13 +61,7 @@ luna-shell.sh
 .imdone
 
 # cabal configs - they should be generated from tcabal files
-libs/*/*.cabal
-libs/*/*/*.cabal
-libs/*/*/*/*.cabal
-tools/*/*.cabal
-tools/*/*/*.cabal
-tools/*/*/*/*.cabal
-runner/*.cabal
+*.cabal
 
 #general builds
 dist

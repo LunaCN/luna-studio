@@ -1,11 +1,11 @@
-copy WinSW.NET4.exe s-luna-empire.exe
-copy WinSW.NET4.exe s-undo-redo.exe
-copy WinSW.NET4.exe s-ws-connector.exe
-copy WinSW.NET4.exe s-broker.exe
-s-luna-empire install
-s-undo-redo install
-s-ws-connector install
-s-broker install
+copy /y "%~dp0\WinSW.NET4.exe" "%~dp0\s-luna-double-representation.exe"
+copy /y "%~dp0\WinSW.NET4.exe" "%~dp0\s-luna-undo-redo.exe"
+copy /y "%~dp0\WinSW.NET4.exe" "%~dp0\s-luna-ws-connector.exe"
+copy /y "%~dp0\WinSW.NET4.exe" "%~dp0\s-luna-broker.exe"
+"%~dp0\s-luna-double-representation" install
+"%~dp0\s-luna-undo-redo" install
+"%~dp0\s-luna-ws-connector" install
+"%~dp0\s-luna-broker" install
 
 :: below is a super cryptic way to allow local users to start/stop/restart/query status of Luna services
 :: how does it work?
@@ -19,7 +19,7 @@ s-broker install
 :: 4. This needs to be added to _discretionary ACL_ (DACL) of security descriptor (part with D: at the beginning)
 :: 5. Finally, we set the new descriptor on all of our services using "sc.exe sdset _service_ _descriptor_"
 
-sc.exe sdset s-luna-empire "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;RPWPDTLO;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"
-sc.exe sdset s-undo-redo "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;RPWPDTLO;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"
-sc.exe sdset s-ws-connector "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;RPWPDTLO;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"
-sc.exe sdset s-broker "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;RPWPDTLO;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"
+"%SystemRoot%\System32\sc.exe" sdset s-luna-double-representation "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;RPWPDTLO;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"
+"%SystemRoot%\System32\sc.exe" sdset s-luna-undo-redo "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;RPWPDTLO;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"
+"%SystemRoot%\System32\sc.exe" sdset s-luna-ws-connector "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;RPWPDTLO;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"
+"%SystemRoot%\System32\sc.exe" sdset s-luna-broker "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;RPWPDTLO;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"

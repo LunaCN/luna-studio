@@ -1,0 +1,57 @@
+name:    luna-undo-redo
+version: 0.1.0.0
+license: AGPL-3
+author:  Luna Team <contact@luna-lang.org>
+
+dependencies:
+  - base
+  - binary
+  - bytestring
+  - containers
+  - errors
+  - ghc
+  - hspec
+  - lens
+  - luna-api-definition
+  - luna-bus
+  - luna-double-representation
+  - mtl
+  - m-logger
+  - prologue
+  - safe-exceptions
+  - stm
+  - text
+  - uuid
+  - uuid-types
+  - zeromq4-haskell
+
+default-extensions:
+  - DeriveGeneric
+  - MultiParamTypeClasses
+  - NoImplicitPrelude
+  - TemplateHaskell
+  - TypeApplications
+
+library:
+    source-dirs: src
+    ghc-options: -Wall -O2
+
+
+executables:
+ luna-undo-redo:
+   dependencies:
+     - m-logger
+     - luna-undo-redo
+
+
+   source-dirs: src-app
+   main:        Main.hs
+   ghc-options: -Wall -O2 -threaded
+
+tests:
+   spec:
+       main: Spec.hs
+       source-dirs: test
+       dependencies:
+           - hspec
+           - luna-undo-redo

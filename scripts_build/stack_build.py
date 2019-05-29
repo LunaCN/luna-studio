@@ -5,11 +5,11 @@ from glob import glob
 import os
 import subprocess
 import system as system
-from common import working_directory
+from common import create_symlink_or_copy, working_directory
 
 app_dir      = ap.prep_path('..')
-backend_dir  = ap.prep_path('../build-config/backend')
-frontend_dir = ap.prep_path('../luna-studio')
+backend_dir  = ap.prep_path('../backend')
+frontend_dir = ap.prep_path('../frontend')
 runner_dir   = ap.prep_path('../runner')
 
 
@@ -37,15 +37,22 @@ def build_runner(runner_args):
 
 def build_backend(backend_args):
     with working_directory(backend_dir):
-        subprocess.check_output(['stack', 'build', 'luna-empire', '--test', '--no-run-tests'])
-        subprocess.check_output(['stack', 'build'] + backend_args)
+        # subprocess.check_output(['stack', 'build', 'luna-empire', '--test', '--no-run-tests'])
+        sys_opts = ['--ghc-options=-fexternal-interpreter'] if system.windows() else []
+        # Note: -fno-omit-interface-pragmas is specific to our backend stack.yaml project.
+        # It adds -fomit-interface-pragmas option that negatively affects performance.
+        # This script wants to create a fully-optimized build, so we need to overwtite the flag.
+        #
+        # TODO: this behaviour should be eventually optional and script should be usable 
+        # for building development packages (that also care about build-speed).
+        args = sys_opts + backend_args + ['--ghc-options=-fno-omit-interface-pragmas']
+        subprocess.check_output(['stack', 'build'] + args)
 
 def mv_runner(runner):
     if system.windows():
         runner_src = runner + '/src/' + '/StudioRunner.exe'
         runner_dst = ap.prep_path('../dist/bin/public/luna-studio/luna-studio.exe')
         os.replace(runner_src, runner_dst)
-
 
 def link_main_bin ():
     with working_directory(ap.prep_path('../dist/bin')):
@@ -55,12 +62,11 @@ def link_main_bin ():
             if os.path.isfile(dst_path):
                 os.remove(dst_path)
             if os.path.isfile(src_path):
-                    os.symlink(os.path.relpath(src_path,'main/'), dst_path)
-
+                create_symlink_or_copy(dst_path, src_path)
 
     # os.symlink('./public/luna-studio', 'main', target_is_directory=True)
 def copy_std_lib ():
-    std_lib_path = ap.prep_path ( '../build-config/backend/.stack-work') + '/**/stdlib'
+    std_lib_path = ap.prep_path ( '../backend/.stack-work') + '/**/stdlib'
     std_lib_folder = glob(std_lib_path,recursive=True)
     print (std_lib_folder)
 

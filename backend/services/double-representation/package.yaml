@@ -1,0 +1,140 @@
+name:    luna-double-representation
+version: 0.1.0.0
+license: AGPL-3
+author:  Luna Team <contact@luna-lang.org>
+
+default-extensions:
+    - AllowAmbiguousTypes
+    - ApplicativeDo
+    - Arrows
+    - BangPatterns
+    - BinaryLiterals
+    - ConstraintKinds
+    - DataKinds
+    - DefaultSignatures
+    - DeriveDataTypeable
+    - DeriveFoldable
+    - DeriveFunctor
+    - DeriveGeneric
+    - DeriveTraversable
+    - DoAndIfThenElse
+    - DuplicateRecordFields
+    - EmptyDataDecls
+    - FlexibleContexts
+    - FlexibleInstances
+    - FunctionalDependencies
+    - GeneralizedNewtypeDeriving
+    - InstanceSigs
+    - LambdaCase
+    - LiberalTypeSynonyms
+    - MonadComprehensions
+    - MultiWayIf
+    - NamedWildCards
+    - NegativeLiterals
+    - NoImplicitPrelude
+    - NumDecimals
+    - OverloadedLabels
+    - OverloadedStrings
+    - PackageImports
+    - QuasiQuotes
+    - RankNTypes
+    - RecursiveDo
+    - RelaxedPolyRec
+    - ScopedTypeVariables
+    - StandaloneDeriving
+    - TemplateHaskell
+    - TupleSections
+    - TypeApplications
+    - TypeFamilies
+    - TypeFamilyDependencies
+    - TypeOperators
+    - ViewPatterns
+
+ghc-options: -Wall -O2 -threaded
+
+library:
+    source-dirs: src
+    ghc-options: -Wall -O2 -threaded
+    other-modules:
+        - Paths_luna_double_representation
+    dependencies:
+        - async
+        - base
+        - bimap
+        - binary
+        - bytestring
+        - constraints
+        - containers
+        - directory
+        - either
+        - ekg
+        - errors
+        - exceptions
+        - filemanip
+        - filepath
+        - groom
+        - lens
+        - lifted-async
+        - luna-api-definition
+        - luna-bus
+        - luna-core
+        - luna-datafile
+        - luna-package
+        - luna-empire
+        - luna-passes
+        - luna-stdlib
+        - m-logger
+        - mtl
+        - optparse-applicative
+        - path
+        - pretty-show
+        - prologue
+        - safe
+        - safe-exceptions
+        - split
+        - stm
+        - temporary
+        - text
+        - time
+        - transformers
+        - unordered-containers
+        - uuid
+        - uuid-types
+        - zeromq4-haskell >= 0.4
+        - zlib
+
+executables:
+    luna-double-representation:
+        source-dirs: src-app
+        main: Main.hs
+        ghc-options: -Wall -O2 -threaded "-with-rtsopts=-N -T"
+        dependencies:
+          - base
+          - binary
+          - containers
+          - luna-api-definition
+          - luna-bus
+          - luna-configurator
+          - luna-double-representation
+          - m-logger
+          - matrix
+          - optparse-applicative
+          - prologue
+          - text
+          - unordered-containers
+
+tests:
+    spec:
+        main: Spec.hs
+        source-dirs: test
+        ghc-options: -Wno-unused-do-bind -threaded -with-rtsopts=-N4
+        dependencies:
+            - luna-empire
+            - lens
+            - hspec
+            - monad-loops
+            - QuickCheck
+            - reflection
+            - raw-strings-qq
+            - template-haskell
+            - safe-exceptions

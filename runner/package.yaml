@@ -15,15 +15,11 @@ dependencies:
     - dependent-state
     - aeson
     - bytestring
-    - directory
     - exceptions
     - optparse-applicative
     - path
+    - path-io
     - safe-exceptions
-    - split
-    - shelly
-    - system-filepath
-    - temporary
     - text
     - template-haskell
     - typed-process

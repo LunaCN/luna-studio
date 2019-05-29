@@ -1,0 +1,28 @@
+name:    luna-broker
+version: 0.1.0.0
+license: AGPL-3
+author:  Luna Team <contact@luna-lang.org>
+
+default-extensions:
+    - NoImplicitPrelude
+
+ghc-options:
+    - -Wall
+    - -O2
+    - -threaded
+
+dependencies:
+    - base
+    - bytestring
+    - containers
+    - luna-bus
+    - m-logger
+    - prologue
+    - transformers
+    - protocol-buffers
+    - zeromq4-haskell >=0.4
+
+executables:
+    luna-broker:
+        main: Main.hs
+        source-dirs: src-app
